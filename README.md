@@ -1,0 +1,2 @@
+# pythonpackage
+How to package python, based on a tutorial. I am combing the github hello-world guide to include common git features along with Pycharm IDE, Virtual ENVs, and the python tutorial here: https://python-packaging.readthedocs.io/en/latest/
