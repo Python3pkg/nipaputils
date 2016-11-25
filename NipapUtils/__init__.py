@@ -1,5 +1,5 @@
 import sys
-import urllib2
+import urllib3
 import logging
 import pynipap
 from pynipap import VRF, Pool, Prefix, AuthOptions, NipapError
@@ -32,8 +32,8 @@ class NipapUtils:
         # a bad connection string does not result in an exception
         # check to host to do some minimal amount to verification
         try:
-            response = urllib2.urlopen("http://" + NipapUtils.nipap_host + ":5000", timeout=2)
-        except urllib2.URLError:
+            response = urllib3.urlopen("http://" + NipapUtils.nipap_host + ":5000", timeout=2)
+        except urllib3.URLError:
             logging.error("Cannot connect to nipap url %s" % NipapUtils.nipap_host + ":5000")
             raise pynipap.NipapAuthError
 
