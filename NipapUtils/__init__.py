@@ -11,12 +11,16 @@ __author__ = "techdiverdown@gmail.com"
 
 
 class NipapUtils:
-    nipap_user = 'psb'
-    nipap_password = 'psb'
-    nipap_host = 'crt-nipap-00.itf.centurylink.net'
+    # replace with your nipap username used during install
+    nipap_user = 'myuser'
+    # replace with your nipap password
+    nipap_password = 'mypassword'
+    # replace with your url
+    nipap_host = 'myhostname'
     nipap_port = '1337'
     nipap_uri = "http://" + nipap_user + ":" + nipap_password + "@" + nipap_host + ":" + nipap_port
-    client_name = "psb_nipap_client"
+    # replace with with your client name
+    client_name = 'myclient'
 
     def __init__(self):
 
@@ -270,7 +274,9 @@ class NipapUtils:
 if __name__ == '__main__':
 
     '''
-    Examples calls are below
+    Examples calls are below, Note normally exceptions would be caught here with appropriate errors
+    In this case, this is just example code. A VRF represents a Virtual Private Routed Network (VPRN)
+    identifier in Alcatel Lucent or Nokia terminology. VRF is the cisco term, same thing.
     '''
 
     # createNipapClient()
@@ -280,12 +286,12 @@ if __name__ == '__main__':
     this = NipapUtils()
     this.get_pools()
 
-    # add a pool
-    this.add_pool("JBM Pool", "Johns Test Pool", "assignment", 29)
+    # add a pool with /29 as a CIDR
+    this.add_pool("Techdiverdown Pool", "Test Pool", "assignment", 29)
 
     #### VRF Stuff ###
 
-    # get a specific VRF
+    # get a specific VRF, RT is route target
     vrfs = this.get_vrfs('RT 4444')
     for vrf in vrfs:
         print "Getting one specific VRF"
@@ -297,5 +303,5 @@ if __name__ == '__main__':
         print "Getting all VRFS"
         print vrf.rt, vrf.description, vrf.name
 
-    # add a VRF
-    vrf = this.add_vrf("JBN VRF", "209:7654", "JBM VRF Test")
+    # add a VRF, 2nd param is the AS:VPRN  see here: https://www.apnic.net/get-ip/faqs/asn
+    vrf = this.add_vrf("MY VRF", "123:7654", "VRF Test")
