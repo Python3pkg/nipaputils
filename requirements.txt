@@ -2,3 +2,5 @@ pynipap==0.28.0
 wheel==0.24.0
 logging==0.4.9.6
 urllib3>=1.16
+coverage>=4.1
+pg8000>=1.10.6
