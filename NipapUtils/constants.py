@@ -1,0 +1,12 @@
+NIPAP_USER = 'psb'
+NIPAP_PASSWORD = 'psb'
+NIPAP_HOST = 'crt-nipap-01.itf.centurylink.net'
+NIPAP_PORT = '1337'
+NIPAP_URL = "http://" + NIPAP_USER + ":" + NIPAP_PASSWORD + "@" + NIPAP_HOST + ":" + NIPAP_PORT
+NIPAP_CLIENT_NAME = "psb_nipap_client"
+NIPAP_LOG = "/tmp/nipap.log"
+NIPAP_DB_USER='bpo'
+NIPAP_DB_PASSWORD = '@P2d4tw!'
+NIPAP_DB_PORT = 5432
+NIPAP_DB = 'nipap'
+NIPAP_DB_DRIVER = 'postgresql'
