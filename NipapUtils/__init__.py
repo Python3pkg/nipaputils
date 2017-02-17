@@ -1,26 +1,28 @@
 import sys
-import urllib3
+import urllib2
 import logging
 import pynipap
 from pynipap import VRF, Pool, Prefix, AuthOptions, NipapError
+import constants as CONSTANTS
+import pg8000
 
 """
-    NipapUtils.py - a set utility functions for working with NIPAP
+    NipapUtils.py - a set utility functions for working with NIPAP OpenSourc IPAM
+    This also contains calls to an additional table created in NIPAP to support VLANs
+
 """
-__author__ = "techdiverdown@gmail.com"
+__author__ = "john.mcmanus@centurylink.com"
 
 
-class NipapUtils:
-    # replace with your nipap username used during install
-    nipap_user = 'myuser'
-    # replace with your nipap password
-    nipap_password = 'mypassword'
-    # replace with your url
-    nipap_host = 'myhostname'
-    nipap_port = '1337'
-    nipap_uri = "http://" + nipap_user + ":" + nipap_password + "@" + nipap_host + ":" + nipap_port
-    # replace with with your client name
-    client_name = 'myclient'
+class NipapUtils(object):
+
+    nipap_user = CONSTANTS.NIPAP_USER
+    nipap_password = CONSTANTS.NIPAP_PASSWORD
+    nipap_host = CONSTANTS.NIPAP_HOST
+    nipap_port = CONSTANTS.NIPAP_PORT
+    nipap_uri = CONSTANTS.NIPAP_URL
+    conn = None
+
 
     def __init__(self):
 
@@ -32,15 +34,78 @@ class NipapUtils:
         # a bad connection string does not result in an exception
         # check to host to do some minimal amount to verification
         try:
-            response = urllib3.urlopen("http://" + NipapUtils.nipap_host + ":5000", timeout=2)
-        except urllib3.URLError:
-            logging.error("Cannot connect to nipap url %s" % NipapUtils.nipap_host + ":5000")
+            response = urllib2.urlopen("http://" + NipapUtils.nipap_host, timeout=10)
+        except urllib2.URLError:
+            logging.error("Cannot connect to nipap url %s" % NipapUtils.nipap_host)
             raise pynipap.NipapAuthError
 
         pynipap.xmlrpc_uri = NipapUtils.nipap_uri
         a = AuthOptions({
-            'authoritative_source': NipapUtils.client_name,
+            'authoritative_source': CONSTANTS.NIPAP_CLIENT_NAME,
         })
+
+
+    def create_nipap_db_connection(self):
+
+        try:
+            NipapUtils.conn = pg8000.connect(user=CONSTANTS.NIPAP_DB_USER, host=CONSTANTS.NIPAP_HOST,
+                                       port=CONSTANTS.NIPAP_DB_PORT, database=CONSTANTS.NIPAP_DB,
+                                       password=CONSTANTS.NIPAP_DB_PASSWORD)
+        except Exception as e:
+            logging.error("Cannot connect to nipap db url {}".format(CONSTANTS.NIPAP_HOST))
+
+    def queryVlanByIdPort(self, vlanid, porttype):
+
+        self.create_nipap_db_connection()
+        cur = self.conn.cursor()
+        try:
+            cur.execute(
+                "SELECT * FROM psb_vlan WHERE vlanid = (%s) and porttype = (%s);",
+                (vlanid, porttype))
+            rowcount = cur.rowcount
+            if rowcount == -1:
+                return None
+            return cur.fetchall()
+        except Exception as e:
+            logging.error(e.message)
+            cur.close()
+            self.conn.close()
+            raise Exception(e.message)
+
+    def insertVlan(self, vlanid, siteid, cug, enterprisename, porttype):
+
+        self.create_nipap_db_connection()
+        cur = self.conn.cursor()
+        try:
+            cur.execute(
+                "INSERT INTO psb_vlan (vlanid, siteid, cug, enterprisename, porttype) "
+                "VALUES ((%s), (%s), (%s), (%s), (%s));",
+                (vlanid, siteid, cug, enterprisename, porttype))
+            rowcount = cur.rowcount
+            assert rowcount is 1
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logging.error(e.message)
+            cur.close()
+            self.conn.close()
+            raise Exception(e.message)
+
+    def deleteVlan(self, vlanid, porttype):
+        try:
+            cur = self.conn.cursor()
+            cur.execute(
+                "DELETE FROM psb_vlan WHERE vlanid = (%s) and porttype = (%s)",
+                (vlanid, porttype))
+            rowcount = cur.rowcount
+            assert rowcount is 1
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logging.error(e)
+            cur.close()
+            self.conn.close()
+            raise Exception(e)
 
     def find_prefix(self, rt, prefix):
         """
@@ -228,14 +293,19 @@ class NipapUtils:
             print "Error: could not add vrf to NIPAP: %s" % str(exc)
             return None
 
-    def delete_vrf(self, rt):
+    def delete_vrf(self, rt=None, name=None):
         """
-        Deletes a vrf given the rt, does not work if the vrf has a prefix
-        :param rt:
-        :return: tbd
+        Deletes a vrf given the rt or name, does not work if the vrf has a prefix
+        :param rt: the route target
+        :param name: the VRF name
+        :return: VRF object deleted
         """
         if rt is not None:
             myVRF = self.find_vrf('rt', rt)
+            if myVRF is not None:
+                myVRF.remove()
+        elif name is not None:
+            myVRF = self.find_vrf('name', name)
             if myVRF is not None:
                 myVRF.remove()
         return myVRF
@@ -270,6 +340,60 @@ class NipapUtils:
 
         return retVal
 
+    def get_ipam_ip(self, site, rt, prefix, length, type, status, description, tags=[]):
+        """
+
+        :param site: String site identifier like SC8 or DC2
+        :param rt: String identifying the route target aka '209:123'
+        :param prefix: String identifying the parent network  '10.173.129.0/24'
+        :param length: the CIDR you want to reserve like 29 or 32
+        :param type: String that must be "reservation", "assignment" or "host"
+        :param status: String that must be either "assigned" or "reserved"
+        :param description: String description of the ip
+        :param tags: List of tags for use in query
+        :return: None or the Prefix object
+        """
+
+        try:
+            logging.debug("Enter function get_ipam_ip: site={} prefix={} length={} type={} status={}".format(site,
+                                                                                                             prefix, length,
+                                                                                                   type, status))
+
+            retVal = self.find_and_reserve_prefix(rt, prefix, length, type, description, status)
+
+            # add /24
+            self.add_prefix_to_vrf(rt, prefix, type, description, status, tags)
+        except Exception as e:
+            logging.error("Error: {} could not reserve prefix {} for rt {}".format(e.message, prefix, rt))
+            raise Exception("Error: {} could not reserve prefix {} for rt {}".format(e.message, prefix, rt))
+        return retVal
+
+
+
+    def get_ipam_ip_24(self, site, rt, prefix, type, status, description, tags=[]):
+        """
+        This is designed to add the parent network under the VRF, usually a /24
+        :param site: String site identifier like SC8 or DC2
+        :param rt: String identifying the route target aka '209:123'
+        :param prefix: String identifying the parent network  '10.173.129.0/24'
+        :param length: the CIDR you want to reserve like 29 or 32
+        :param type: String that must be "reservation", "assignment" or "host"
+        :param status: String that must be either "assigned" or "reserved"
+        :param description: String description of the ip
+        :param tags: List of tags for use in query
+        :return: None or the Prefix object
+        """
+
+        try:
+            logging.debug(
+                "Enter function get_ipam_ip_24: site={} rt={} prefix={} type={} status={}".format(site,
+                                                                                                  rt, prefix,
+                                                                                                  type, status))
+            retVal = self.add_prefix_to_vrf(rt, prefix, type, description, status, tags)
+        except:
+            e = sys.exc_info()[0]
+            logging.debug("Error: {} could not reserve prefix {} for rt {}".format(e, prefix, rt))
+        return retVal
 
 if __name__ == '__main__':
 
@@ -283,6 +407,7 @@ if __name__ == '__main__':
     # pool1 = NipapUtils.add_pool('test', 'assignment', 31, 112)
 
     # list the pools
+
     this = NipapUtils()
     this.get_pools()
 
