@@ -1,5 +1,5 @@
 import sys
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import logging
 import pynipap
 from pynipap import VRF, Pool, Prefix, AuthOptions, NipapError
@@ -34,8 +34,8 @@ class NipapUtils(object):
         # a bad connection string does not result in an exception
         # check to host to do some minimal amount to verification
         try:
-            response = urllib2.urlopen("http://" + NipapUtils.nipap_host, timeout=10)
-        except urllib2.URLError:
+            response = urllib.request.urlopen("http://" + NipapUtils.nipap_host, timeout=10)
+        except urllib.error.URLError:
             logging.error("Cannot connect to nipap url %s" % NipapUtils.nipap_host)
             raise pynipap.NipapAuthError
 
@@ -229,8 +229,8 @@ class NipapUtils(object):
         try:
             p.save(args)
             return p
-        except NipapError, exc:
-            print "Error: could not add prefix: %s" % str(exc)
+        except NipapError as exc:
+            print("Error: could not add prefix: %s" % str(exc))
             return None
 
     def get_prefixs(self, name=''):
@@ -257,8 +257,8 @@ class NipapUtils(object):
         try:
             pool.save()
             return pool
-        except NipapError, exc:
-            print "Error: could not add pool to NIPAP: %s" % str(exc)
+        except NipapError as exc:
+            print("Error: could not add pool to NIPAP: %s" % str(exc))
             return None
 
     def delete_pool(self, name):
@@ -266,8 +266,8 @@ class NipapUtils(object):
             pool = Pool.list({"name": name})
             try:
                 pool.remove()
-            except NipapError, exc:
-                print "Error: could not remove pool: %s" % str(exc)
+            except NipapError as exc:
+                print("Error: could not remove pool: %s" % str(exc))
 
     def get_pools(self, name=''):
         if len(name) > 0:
@@ -289,8 +289,8 @@ class NipapUtils(object):
             vrf.tags = tags
             vrf.save()
             return vrf
-        except NipapError, exc:
-            print "Error: could not add vrf to NIPAP: %s" % str(exc)
+        except NipapError as exc:
+            print("Error: could not add vrf to NIPAP: %s" % str(exc))
             return None
 
     def delete_vrf(self, rt=None, name=None):
@@ -419,14 +419,14 @@ if __name__ == '__main__':
     # get a specific VRF, RT is route target
     vrfs = this.get_vrfs('RT 4444')
     for vrf in vrfs:
-        print "Getting one specific VRF"
-        print vrf.rt, vrf.description, vrf.name
+        print("Getting one specific VRF")
+        print(vrf.rt, vrf.description, vrf.name)
 
     # get all VRFs
     vrfs = this.get_vrfs()
     for vrf in vrfs:
-        print "Getting all VRFS"
-        print vrf.rt, vrf.description, vrf.name
+        print("Getting all VRFS")
+        print(vrf.rt, vrf.description, vrf.name)
 
     # add a VRF, 2nd param is the AS:VPRN  see here: https://www.apnic.net/get-ip/faqs/asn
     vrf = this.add_vrf("MY VRF", "123:7654", "VRF Test")
